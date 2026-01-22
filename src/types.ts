@@ -40,4 +40,6 @@ export const DEFAULT_PROCESS_OPTIONS: ProcessOptions = {
 
 export const TARGET_ASPECT = 9 / 16;
 export const MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024; // 200MB
-export const FFMPEG_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+
+/** Default FFmpeg timeout in seconds (used when FFMPEG_TIMEOUT_SEC is not set). */
+export const FFMPEG_TIMEOUT_SEC_DEFAULT = 600;

@@ -1,15 +1,27 @@
 /**
- * FFmpeg conversion: pad and blur modes. Uses spawn, timeout 3 min.
+ * FFmpeg conversion: pad and blur modes. Uses spawn, configurable timeout.
  * H.264 + AAC, mp4 output.
+ * Timeout: FFMPEG_TIMEOUT_SEC env (default 600). Process killed on timeout.
  */
 
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ProcessOptions } from '../types';
-import { FFMPEG_TIMEOUT_MS } from '../types';
+import { FFMPEG_TIMEOUT_SEC_DEFAULT } from '../types';
 
 const FFMPEG = 'ffmpeg';
+
+const MIN_TIMEOUT_SEC = 60;
+const MAX_TIMEOUT_SEC = 3600;
+
+function getFfmpegTimeoutSec(): number {
+  const raw = process.env.FFMPEG_TIMEOUT_SEC;
+  if (raw === undefined || raw === '') return FFMPEG_TIMEOUT_SEC_DEFAULT;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < MIN_TIMEOUT_SEC) return FFMPEG_TIMEOUT_SEC_DEFAULT;
+  return Math.min(n, MAX_TIMEOUT_SEC);
+}
 
 function safePath(p: string): string {
   const resolved = path.resolve(p);
@@ -30,8 +42,13 @@ export function convertToShorts(
   const h = options.targetHeight;
   const inPath = safePath(inputPath);
   const outPath = safePath(outputPath);
+  const timeoutSec = getFfmpegTimeoutSec();
+  const timeoutMs = timeoutSec * 1000;
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (): void => { settled = true; };
+
     const args: string[] = ['-y', '-i', inPath];
 
     if (mode === 'pad') {
@@ -72,18 +89,25 @@ export function convertToShorts(
 
     proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 
-    const timeout = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      finish();
+      clearTimeout(timeoutId);
       proc.kill('SIGKILL');
-      reject(new Error(`ffmpeg timeout after ${FFMPEG_TIMEOUT_MS / 1000}s`));
-    }, FFMPEG_TIMEOUT_MS);
+      reject(new Error(`ffmpeg timeout after ${timeoutSec}s`));
+    }, timeoutMs);
 
     proc.on('error', (err) => {
-      clearTimeout(timeout);
+      if (settled) return;
+      finish();
+      clearTimeout(timeoutId);
       reject(new Error(`ffmpeg spawn failed: ${(err as Error).message}`));
     });
 
     proc.on('close', (code, signal) => {
-      clearTimeout(timeout);
+      clearTimeout(timeoutId);
+      if (settled) return;
+      finish();
       if (code !== 0) {
         reject(new Error(`ffmpeg exited with code ${code ?? signal}. stderr: ${stderr.slice(-2000)}`));
         return;

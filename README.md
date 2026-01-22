@@ -82,10 +82,10 @@ If the video is already Shorts-eligible and `forceConvert` is `false`, the **ori
 
 | Mode | Description |
 |------|-------------|
-| **pad** | Scale to fit 1080×1920, pad with black bars |
-| **blur** | Blurred 1080×1920 background, overlay scaled video (default) |
+| **pad** | Scale to fit 1080×1920, pad with black bars (**faster** than blur) |
+| **blur** | Blurred 1080×1920 background, overlay scaled video (default; slower on low‑CPU) |
 
-Output: H.264 + AAC, MP4, 3‑minute FFmpeg timeout.
+Output: H.264 + AAC, MP4. FFmpeg runs with a configurable timeout (see **Environment**).
 
 ---
 
@@ -95,6 +95,12 @@ Output: H.264 + AAC, MP4, 3‑minute FFmpeg timeout.
 npm install
 npm run build
 npm start
+```
+
+Override FFmpeg timeout (default 600 sec):
+
+```bash
+FFMPEG_TIMEOUT_SEC=900 npm start
 ```
 
 Dev (watch):
@@ -114,6 +120,12 @@ docker build -t shorts-api .
 docker run -p 3000:3000 shorts-api
 ```
 
+Override FFmpeg timeout (default 600 sec):
+
+```bash
+docker run -e FFMPEG_TIMEOUT_SEC=900 -p 3000:3000 shorts-api
+```
+
 ---
 
 ## Deploy on Render
@@ -128,6 +140,7 @@ docker run -p 3000:3000 shorts-api
 ### 2. Environment
 
 - `PORT`: Set by Render (usually `10000`). The app reads `process.env.PORT`.
+- **`FFMPEG_TIMEOUT_SEC`** (optional): Max seconds before FFmpeg is killed. Default **600** (10 min). Use a higher value (e.g. `900`, `3600`) on slow or free-tier instances to avoid `CONVERSION_FAILED` timeouts. Clamped to 60–3600.
 - Optional: `NODE_ENV=production` (default in Dockerfile).
 
 ### 3. Build & Deploy
